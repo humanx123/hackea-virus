@@ -1,0 +1,68 @@
+import type { Molecule } from '../types';
+
+export const molecules: Molecule[] = [
+  {
+    id: 'quercetin',
+    name: 'Quercetina',
+    category: 'Flavonoide',
+    molecularWeight: 302.2,
+    description: 'Antioxidante polifenólico presente en plantas. Candidato en estudios computacionales.',
+    disclaimer: 'La inclusión no implica eficacia clínica comprobada.',
+  },
+  {
+    id: 'curcumin',
+    name: 'Curcumina',
+    category: 'Curcuminoide',
+    molecularWeight: 368.4,
+    description: 'Compuesto activo de la cúrcuma. Explorada computacionalmente en diversos contextos virales.',
+    disclaimer: 'Hipótesis computacional únicamente.',
+  },
+  {
+    id: 'remdesivir',
+    name: 'Remdesivir',
+    category: 'Nucleótido análogo',
+    molecularWeight: 602.6,
+    description: 'Antiviral con mecanismo conocido de inhibición de polimerasa. Referencia clínica validada.',
+    disclaimer: 'Aunque tiene evidencia clínica, esta simulación es exploratoria.',
+  },
+  {
+    id: 'favipiravir',
+    name: 'Favipiravir',
+    category: 'Inhibidor de polimerasa',
+    molecularWeight: 157.1,
+    description: 'Inhibidor de ARN polimerasa viral. Candidato en múltiples estudios de docking.',
+    disclaimer: 'Predicción computacional sin validación experimental.',
+  },
+  {
+    id: 'ribavirin',
+    name: 'Ribavirina',
+    category: 'Nucleósido análogo',
+    molecularWeight: 244.2,
+    description: 'Agente antiviral de amplio espectro. Objetivo de estudio molecular computacional.',
+    disclaimer: 'La simulación no valida su actividad biológica.',
+  },
+  {
+    id: 'niclosamide',
+    name: 'Niclosamida',
+    category: 'Antihelmintico',
+    molecularWeight: 327.1,
+    description: 'Antihelmíntico reposicionado como antiviral potencial en modelos computacionales.',
+    disclaimer: 'Exploración preliminar sin confirmación experimental.',
+  },
+  {
+    id: 'luteolin',
+    name: 'Luteolina',
+    category: 'Flavona',
+    molecularWeight: 286.2,
+    description: 'Flavonoide presente en plantas. Explorada como candidato antiviral computacional.',
+    disclaimer: 'Predicción teórica; requiere validación in vitro.',
+  },
+  {
+    id: 'caffeine',
+    name: 'Cafeína',
+    category: 'Control didáctico',
+    molecularWeight: 194.2,
+    description: 'Usado como control. No se espera afinidad antiviral relevante.',
+    disclaimer: 'Control educativo para demostrar variabilidad de predicciones.',
+  },
+];

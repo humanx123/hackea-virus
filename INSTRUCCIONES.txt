@@ -1,0 +1,223 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                        HACKEA UN VIRUS                                     ║
+║        Experiencia Interactiva de Docking Molecular - Manual de Uso         ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+─────────────────────────────────────────────────────────────────────────────
+1. INSTALACIÓN INICIAL
+─────────────────────────────────────────────────────────────────────────────
+
+a) Asegurate de tener Node.js 16+ instalado:
+   node --version
+
+b) Navega a la carpeta del proyecto:
+   cd hackea-virus
+
+c) Instala dependencias:
+   npm install
+
+d) Inicia servidor de desarrollo:
+   npm run dev
+
+e) Abre en navegador:
+   http://localhost:5173
+
+─────────────────────────────────────────────────────────────────────────────
+2. CONTROLES
+─────────────────────────────────────────────────────────────────────────────
+
+CON XBOX USB CONECTADO:
+  A             → Aceptar/Seleccionar
+  B             → Regresar/Cancelar
+  X             → Lanzar simulación de docking
+  Y             → Mostrar información científica
+  D-pad ↑/↓     → Navegar listas (arriba/abajo)
+  D-pad ←/→     → Scroll horizontal
+  Left Stick    → Navegación alternativa
+  Right Stick   → Rotar visualización 3D
+  LT/RT         → Zoom en moléculas
+  Start         → Reiniciar experiencia
+
+CON TECLADO (fallback):
+  Enter         → A (aceptar)
+  Escape        → B (regresar)
+  X             → Lanzar docking
+  I             → Información científica
+  Flechas ↑/↓   → Navegar
+  Flechas ←/→   → Scroll
+  R             → Reiniciar
+
+─────────────────────────────────────────────────────────────────────────────
+3. FLUJO DE LA EXPERIENCIA
+─────────────────────────────────────────────────────────────────────────────
+
+[PANTALLA 1: INICIO]
+  - Bienvenida y descripción
+  - Muestra si Xbox está detectado
+  - Presiona A para continuar
+
+[PANTALLA 2: SELECCIÓN DE MOLÉCULA]
+  - Navega lista de 8 moléculas candidatas:
+    1. Quercetina (flavonoide)
+    2. Curcumina (curcuminoide)
+    3. Remdesivir (nucleótido análogo)
+    4. Favipiravir (inhibidor polimerasa)
+    5. Ribavirina (nucleósido)
+    6. Niclosamida (antihelmíntico)
+    7. Luteolina (flavona)
+    8. Cafeína (control didáctico)
+  - Cada molécula muestra: nombre, categoría, peso molecular, descripción
+  - Advertencia: "La inclusión no implica eficacia clínica"
+  - Presiona A para seleccionar
+
+[PANTALLA 3: SELECCIÓN DE PROTEÍNA VIRAL]
+  - Navega 5 proteínas blanco:
+    1. Proteasa viral (escisión de poliproteínas)
+    2. ARN polimerasa (síntesis de ácidos nucleicos)
+    3. Helicasa (desempaquetamiento de ARN)
+    4. Proteína de entrada/fusión (reconocimiento)
+    5. NSP5 (procesamiento post-traduccional)
+  - Cada proteína muestra función y por qué es blanco
+  - Presiona A para seleccionar
+
+[PANTALLA 4: SIMULACIÓN DE DOCKING]
+  - Consola terminal simulada (estilo Matrix)
+  - Logs animados mostrando pasos:
+    > loading ligand...
+    > preparing receptor...
+    > defining search box...
+    > running docking engine...
+    > exploring conformations...
+    > scoring binding poses...
+    > best predicted affinity found...
+    > warning: computational hypothesis only
+    > experimental validation required
+  - Barra de progreso (0-100%)
+  - Tiempo total: 8-15 segundos (simulado)
+
+[PANTALLA 5: RESULTADOS]
+  - Molécula seleccionada
+  - Proteína seleccionada
+  - Score de afinidad en kcal/mol (ej: -7.2)
+  - Ranking visual: 
+    ◆◆◆ POTENCIAL ALTO (afinidad < -8.0)
+    ◆◆ POTENCIAL MEDIO (-8.0 a -6.5)
+    ◆ POTENCIAL BAJO (> -6.5)
+  - Visualización 3D esquemática (molécula + proteína)
+  - Advertencias científicas:
+    ⚠️ "Esto no es evidencia experimental"
+    ⚠️ "Una afinidad computacional requiere validación in vitro"
+  - Opciones:
+    A → Repetir (nueva simulación)
+    Y → Ver información científica
+    B → Volver a menú
+
+[PANTALLA 6: INFORMACIÓN CIENTÍFICA]
+  - Explicación accesible sobre:
+    > Qué es docking molecular
+    > Qué es proteína blanco
+    > Qué es ligando
+    > Qué significa afinidad
+    > Por qué no demuestra actividad antiviral
+    > Experimentos reales necesarios
+  - Cierre: "La simulación propone. El laboratorio comprueba."
+
+─────────────────────────────────────────────────────────────────────────────
+4. PARA FERIAS CIENTÍFICAS
+─────────────────────────────────────────────────────────────────────────────
+
+INSTALACIÓN EN KIOSCO:
+  1. npm run build
+  2. Sirve carpeta 'dist/' con servidor web
+     Ejemplo: python -m http.server --directory dist 8080
+  3. Abre http://localhost:8080 en navegador
+  4. Conecta Xbox USB al ordenador
+  5. Proyecta en pantalla grande
+
+PANTALLA COMPLETA:
+  - En navegador, presiona F11 para pantalla completa
+  - Ideal para proyección en feria
+
+MÚLTIPLES SESIONES:
+  - Cada visitor puede hacer su propio flujo
+  - App es completamente local, sin internet necesario
+  - Recarga página para nuevos visitantes
+
+─────────────────────────────────────────────────────────────────────────────
+5. NOTAS PEDAGÓGICAS
+─────────────────────────────────────────────────────────────────────────────
+
+Mensaje Central: "La simulación propone. El laboratorio comprueba."
+
+Disclaimers clave en cada pantalla:
+  ✓ "La inclusión no implica eficacia clínica comprobada"
+  ✓ "Predicción computacional sin validación experimental"
+  ✓ "Hipótesis computacional únicamente"
+  ✓ "Esto no es evidencia experimental"
+
+El objetivo educativo:
+  - Mostrar cómo los científicos usan docking molecular para explorar
+  - Enfatizar que las predicciones son HIPÓTESIS
+  - Explicar por qué validación experimental es esencial
+  - Inspirar curiosidad sin hacer claims falsos
+
+─────────────────────────────────────────────────────────────────────────────
+6. SOLUCIÓN DE PROBLEMAS
+─────────────────────────────────────────────────────────────────────────────
+
+Xbox no detectado:
+  ✓ Conecta el control USB antes de abrir el navegador
+  ✓ Prueba en otro puerto USB
+  ✓ Asegurate que el navegador tiene focus (haz clic en página)
+  ✓ En Chrome, algunos navegadores requieren permiso
+
+Teclas no responden:
+  ✓ Haz clic en la página para darle focus
+  ✓ Verifica que Caps Lock no esté activado (para 'X', 'I', 'R')
+  ✓ Algunos browsers bloquean eventos de teclado en iframes
+
+Gráficos lentos:
+  ✓ Reduce resolución del monitor
+  ✓ Cierra otras pestañas
+  ✓ Recarga la página (F5)
+
+─────────────────────────────────────────────────────────────────────────────
+7. FUTURAS EXTENSIONES
+─────────────────────────────────────────────────────────────────────────────
+
+Fase 2 (Backend real):
+  - Integrar AutoDock Vina o SMINA
+  - Dockings reales con PDB structures
+  - Guardar historial de usuario
+  - Leaderboard local
+
+Fase 3 (Visualización avanzada):
+  - Three.js para 3D real
+  - Interactividad con moléculas
+  - Animación de conformaciones
+
+Fase 4 (Educación):
+  - Videos explicativos
+  - Cuestionarios interactivos
+  - Idiomas adicionales
+  - Certificado digital
+
+─────────────────────────────────────────────────────────────────────────────
+8. CONTACTO Y FEEDBACK
+─────────────────────────────────────────────────────────────────────────────
+
+Feedback / Bugs:
+  - Abre issue en GitHub
+  - Reporta comportamiento inesperado
+
+Adaptación para tu institución:
+  - Modifica data/molecules.ts para tus moléculas
+  - Modifica data/proteins.ts para tus blancos
+  - Personaliza colores en styles/globals.css
+  - Cambia mensajes educativos en components/
+
+─────────────────────────────────────────────────────────────────────────────
+
+¡Buena suerte en tu feria científica!
+Recuerda: La simulación propone. El laboratorio comprueba.
+
