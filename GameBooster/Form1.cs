@@ -4,13 +4,13 @@ using System.Drawing.Drawing2D;
 using System.Threading;
 using System.Windows.Forms;
 using System.Diagnostics;
-using System.Linq;
 
 namespace GameBooster
 {
     public partial class MainForm : Form
     {
         private bool _gameModeActive = false;
+        private bool _megaretroModeActive = false;
         private Thread? _monitorThread;
         private bool _closing = false;
 
@@ -19,6 +19,7 @@ namespace GameBooster
         // ─────────────────────────────────────────────────────────
         private Button btnEnableGame = null!;
         private Button btnRestoreNormal = null!;
+        private Button btnMegaretroHub = null!;
         private Label lblStatus = null!;
         private Label lblMemory = null!;
         private Label lblCpu = null!;
@@ -31,6 +32,7 @@ namespace GameBooster
         private readonly Color PANEL_COLOR = Color.FromArgb(30, 30, 40);
         private readonly Color GREEN_NEON = Color.FromArgb(0, 230, 115);
         private readonly Color RED_CORAL = Color.FromArgb(240, 70, 70);
+        private readonly Color PURPLE_PURPLE = Color.FromArgb(180, 100, 230);
         private readonly Color TEXT_COLOR = Color.FromArgb(220, 220, 230);
 
         public MainForm()
@@ -41,127 +43,96 @@ namespace GameBooster
 
         private void InitializeCustomComponents()
         {
-            // Formulario principal
             this.Text = "Game Booster - Optimizador de Rendimiento";
-            this.Size = new Size(580, 640);
+            this.Size = new Size(600, 700);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.BackColor = BACK_COLOR;
             this.FormBorderStyle = FormBorderStyle.FixedSingle;
             this.MaximizeBox = false;
+            this.MinimumSize = new Size(600, 700);
 
-            // ─── TÍTULO ───
             Label lblTitle = new Label
             {
                 Text = "⚡ GAME BOOSTER ⚡",
-                Font = new Font("Segoe UI", 20, FontStyle.Bold),
+                Font = new Font("Segoe UI", 22, FontStyle.Bold),
                 ForeColor = GREEN_NEON,
                 Location = new Point(20, 15),
                 AutoSize = true
             };
             this.Controls.Add(lblTitle);
 
-            // ─── BOTÓN MODO JUEGO (VERDE) ───
             btnEnableGame = CreateGradientButton("🔥 MODO JUEGO", GREEN_NEON, true);
             btnEnableGame.Location = new Point(30, 65);
-            btnEnableGame.Size = new Size(240, 90);
+            btnEnableGame.Size = new Size(220, 85);
             btnEnableGame.Click += BtnEnableGame_Click;
             this.Controls.Add(btnEnableGame);
 
-            // ─── BOTÓN RESTABLECER (ROJO) ───
-            btnRestoreNormal = CreateGradientButton("⏹ RESTABLECER", RED_CORAL, false);
-            btnRestoreNormal.Location = new Point(290, 65);
-            btnRestoreNormal.Size = new Size(240, 90);
+            btnMegaretroHub = CreateGradientButton("🎮 MEGARETRO HUB", PURPLE_PURPLE, true);
+            btnMegaretroHub.Location = new Point(260, 65);
+            btnMegaretroHub.Size = new Size(220, 85);
+            btnMegaretroHub.Click += BtnMegaretroHub_Click;
+            this.Controls.Add(btnMegaretroHub);
+
+            btnRestoreNormal = CreateGradientButton("⏹ NORMAL", RED_CORAL, false);
+            btnRestoreNormal.Location = new Point(490, 65);
+            btnRestoreNormal.Size = new Size(190, 85);
             btnRestoreNormal.Click += BtnRestoreNormal_Click;
             this.Controls.Add(btnRestoreNormal);
 
-            // ─── ESTADO ───
             lblStatus = new Label
             {
                 Text = "Estado: Sistema en modo normal",
                 Font = new Font("Segoe UI", 12),
                 ForeColor = TEXT_COLOR,
-                Location = new Point(30, 170),
+                Location = new Point(30, 165),
                 AutoSize = true
             };
             this.Controls.Add(lblStatus);
-
-            // ─── MEMORIA RAM ───
-            Label lblMemTitle = new Label
-            {
-                Text = "💾 MEMORIA RAM",
-                Font = new Font("Segoe UI", 11, FontStyle.Bold),
-                ForeColor = TEXT_COLOR,
-                Location = new Point(30, 205),
-                AutoSize = true
-            };
-            this.Controls.Add(lblMemTitle);
 
             lblMemory = new Label
             {
                 Text = "0.0 / 0.0 GB (0%)",
                 Font = new Font("Consolas", 14),
                 ForeColor = TEXT_COLOR,
-                Location = new Point(30, 230),
+                Location = new Point(30, 245),
                 AutoSize = true
             };
             this.Controls.Add(lblMemory);
 
             barMemory = new ProgressBar
             {
-                Location = new Point(30, 255),
-                Size = new Size(510, 22),
+                Location = new Point(30, 270),
+                Size = new Size(540, 24),
                 Style = ProgressBarStyle.Continuous,
                 Minimum = 0,
                 Maximum = 100
             };
             this.Controls.Add(barMemory);
 
-            // ─── CPU ───
-            Label lblCpuTitle = new Label
-            {
-                Text = "🖥️ USO DE CPU",
-                Font = new Font("Segoe UI", 11, FontStyle.Bold),
-                ForeColor = TEXT_COLOR,
-                Location = new Point(30, 295),
-                AutoSize = true
-            };
-            this.Controls.Add(lblCpuTitle);
-
             lblCpu = new Label
             {
                 Text = "0%",
                 Font = new Font("Consolas", 14),
                 ForeColor = TEXT_COLOR,
-                Location = new Point(30, 320),
+                Location = new Point(30, 345),
                 AutoSize = true
             };
             this.Controls.Add(lblCpu);
 
             barCpu = new ProgressBar
             {
-                Location = new Point(30, 345),
-                Size = new Size(510, 22),
+                Location = new Point(30, 370),
+                Size = new Size(540, 24),
                 Style = ProgressBarStyle.Continuous,
                 Minimum = 0,
                 Maximum = 100
             };
             this.Controls.Add(barCpu);
 
-            // ─── LOG DE ACTIVIDAD ───
-            Label lblLogTitle = new Label
-            {
-                Text = "📋 Registro de optimización",
-                Font = new Font("Segoe UI", 11, FontStyle.Bold),
-                ForeColor = TEXT_COLOR,
-                Location = new Point(30, 385),
-                AutoSize = true
-            };
-            this.Controls.Add(lblLogTitle);
-
             txtLog = new TextBox
             {
-                Location = new Point(30, 410),
-                Size = new Size(510, 160),
+                Location = new Point(30, 445),
+                Size = new Size(540, 180),
                 Multiline = true,
                 ReadOnly = true,
                 BackColor = Color.FromArgb(25, 25, 30),
@@ -178,13 +149,14 @@ namespace GameBooster
             var btn = new Button
             {
                 Text = text,
-                Font = new Font("Segoe UI", 15, FontStyle.Bold),
+                Font = new Font("Segoe UI", 14, FontStyle.Bold),
                 FlatStyle = FlatStyle.Flat,
                 ForeColor = isGreen ? Color.Black : Color.White,
                 BackColor = baseColor,
                 FlatAppearance = { BorderSize = 0 },
                 Cursor = Cursors.Hand,
-                UseVisualStyleBackColor = false
+                UseVisualStyleBackColor = false,
+                TextAlign = ContentAlignment.MiddleCenter
             };
 
             btn.Paint += (s, e) =>
@@ -192,12 +164,10 @@ namespace GameBooster
                 var g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
 
-                using (var brush = new SolidBrush(btn.Enabled ? baseColor : Color.FromArgb(60, 60, 70)))
+                using (var brush = new SolidBrush(baseColor))
                     g.FillRectangle(brush, btn.ClientRectangle);
 
-                Color textColor = btn.Enabled ? (isGreen ? Color.Black : Color.White) : Color.Gray;
-
-                TextRenderer.DrawText(g, btn.Text, btn.Font, btn.ClientRectangle, textColor,
+                TextRenderer.DrawText(g, btn.Text, btn.Font, btn.ClientRectangle, btn.ForeColor,
                     TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
             };
             return btn;
@@ -218,7 +188,7 @@ namespace GameBooster
 
         private void BtnEnableGame_Click(object? sender, EventArgs e)
         {
-            if (_gameModeActive) return;
+            if (_gameModeActive || _megaretroModeActive) return;
             btnEnableGame.Enabled = false;
 
             new Thread(() =>
@@ -232,11 +202,10 @@ namespace GameBooster
                     _gameModeActive = true;
                     this.Invoke(() =>
                     {
-                        lblStatus.Text = "Estado: MODO JUEGO ACTIVADO 🔥";
+                        lblStatus.Text = "✅ Estado: MODO JUEGO ACTIVADO 🔥";
                         lblStatus.ForeColor = GREEN_NEON;
                         btnEnableGame.Enabled = false;
                         btnRestoreNormal.Enabled = true;
-                        btnRestoreNormal.Invalidate();
                         btnEnableGame.Invalidate();
                     });
                 }
@@ -248,10 +217,66 @@ namespace GameBooster
             }).Start();
         }
 
+        private void BtnMegaretroHub_Click(object? sender, EventArgs e)
+        {
+            if (_gameModeActive || _megaretroModeActive) return;
+
+            string megaretroPath = @"C:\Program Files Megaretro\Megaretro Hub\MegaretroHub.exe";
+            if (!System.IO.File.Exists(megaretroPath))
+            {
+                var possiblePaths = new[]
+                {
+                    @"C:\Program Files\Megaretro Hub\MegaretroHub.exe",
+                    @"C:\Program Files (x86)\Megaretro Hub\MegaretroHub.exe",
+                    Environment.ExpandEnvironmentVariables(@"%LOCALAPPDATA%\Megaretro\MegaretroHub.exe"),
+                    @"C:\Users\Public\Megaretro\MegaretroHub.exe"
+                };
+                foreach (var p in possiblePaths)
+                {
+                    if (System.IO.File.Exists(p))
+                    {
+                        megaretroPath = p;
+                        break;
+                    }
+                }
+            }
+
+            btnMegaretroHub.Enabled = false;
+
+            new Thread(() =>
+            {
+                try
+                {
+                    var report = Win32Optimizer.EnableMegaretroHubMode(megaretroPath);
+                    foreach (var entry in report.LogEntries)
+                        AppendLog(entry);
+
+                    _megaretroModeActive = true;
+                    this.Invoke(() =>
+                    {
+                        lblStatus.Text = "✅ Estado: MEGARETRO HUB MODE ACTIVADO 🎮";
+                        lblStatus.ForeColor = PURPLE_PURPLE;
+                        btnEnableGame.Enabled = false;
+                        btnRestoreNormal.Enabled = true;
+                        btnMegaretroHub.Enabled = false;
+                        btnMegaretroHub.Invalidate();
+                    });
+                }
+                catch (Exception ex)
+                {
+                    AppendLog($"ERROR Megaretro Hub: {ex.Message}");
+                    this.Invoke(() => { btnMegaretroHub.Enabled = true; btnMegaretroHub.Invalidate(); });
+                }
+            }).Start();
+        }
+
         private void BtnRestoreNormal_Click(object? sender, EventArgs e)
         {
-            if (!_gameModeActive) return;
+            btnEnableGame.Enabled = false;
             btnRestoreNormal.Enabled = false;
+            btnMegaretroHub.Enabled = false;
+            btnEnableGame.Invalidate();
+            btnRestoreNormal.Invalidate();
 
             new Thread(() =>
             {
@@ -262,20 +287,24 @@ namespace GameBooster
                         AppendLog(entry);
 
                     _gameModeActive = false;
+                    _megaretroModeActive = false;
                     this.Invoke(() =>
                     {
                         lblStatus.Text = "Estado: Sistema en modo normal";
                         lblStatus.ForeColor = TEXT_COLOR;
-                        btnRestoreNormal.Enabled = false;
                         btnEnableGame.Enabled = true;
-                        btnRestoreNormal.Invalidate();
-                        btnEnableGame.Invalidate();
+                        btnRestoreNormal.Enabled = false;
+                        btnMegaretroHub.Enabled = true;
                     });
                 }
                 catch (Exception ex)
                 {
                     AppendLog($"ERROR: {ex.Message}");
-                    this.Invoke(() => { btnRestoreNormal.Enabled = true; btnRestoreNormal.Invalidate(); });
+                    this.Invoke(() =>
+                    {
+                        btnEnableGame.Enabled = true;
+                        btnRestoreNormal.Enabled = true;
+                    });
                 }
             }).Start();
         }
@@ -283,6 +312,7 @@ namespace GameBooster
         private void StartMetricsMonitor()
         {
             btnRestoreNormal.Enabled = false;
+            btnMegaretroHub.Enabled = true;
             _monitorThread = new Thread(MonitorLoop)
             {
                 IsBackground = true,
@@ -313,14 +343,14 @@ namespace GameBooster
                 }
                 catch { }
 
-                Thread.Sleep(800);
+                Thread.Sleep(750);
             }
         }
 
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             _closing = true;
-            if (_gameModeActive)
+            if (_gameModeActive || _megaretroModeActive)
             {
                 try { Win32Optimizer.RestoreNormalMode(); }
                 catch { }

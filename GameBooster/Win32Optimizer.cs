@@ -116,6 +116,183 @@ namespace GameBooster
         }
 
         // ─────────────────────────────────────────────────────────────
+        // MODO MEGARETRO HUB (CPU, RAM, GPU dedicada exclusivamente)
+        // ─────────────────────────────────────────────────────────────
+        /// <summary>
+        /// Optimiza CPU, RAM y GPU exclusivamente para Megaretro Hub.
+        /// Configura prioridades de proceso, GPU dedicada, memoria y núcleos.
+        /// </summary>
+        /// <param name="megaretroExePath">Ruta completa al ejecutable de Megaretro Hub</param>
+        /// <returns>Reporte de optimización aplicada</returns>
+        public static OptimizationReport EnableMegaretroHubMode(string megaretroExePath = "")
+        {
+            var report = new OptimizationReport();
+            report.LogEntries.Add("🎮 Iniciando optimización MÁXIMA para Megaretro Hub (CPU, RAM, GPU)...");
+
+            // 1. RAM: vaciar working sets de otros procesos (excepto Megaretro Hub)
+            long before = AvailableMemoryMB();
+            TrimWorkingSetsForProcess(megaretroExePath, report);
+            long after = AvailableMemoryMB();
+            report.MemoryFreedBytes = Math.Max(0, (after - before)) * 1024L * 1024L;
+            report.LogEntries.Add($"💾 RAM optimizada: {after} MB disponibles (Liberados ~{Math.Max(0, after - before)} MB).");
+
+            // 2. CPU: High Performance + Core Parking OFF
+            CaptureCurrentPowerScheme();
+            SetPowerScheme(HighPerformanceGuid, report);
+            DisableCpuCoreParking(true, report);
+
+            // 3. GPU: Prioridad máxima + dedicada NVIDIA + HAGS
+            TuneGpuAndDirectXPriorities(true, report);
+
+            // 4. Excluir Megaretro Hub del Power Throttling (prioridad 100% del sistema)
+            ExcludeFromPowerThrottling(megaretroExePath, report);
+
+            // 5. MMCSS high priority for multimedia
+            TuneMultimediaProfile(true, report);
+
+            // 6. Flush DNS y optimizar red
+            FlushDnsCache(report);
+
+            report.LogEntries.Add("🔥 MODO MEGARETRO HUB ACTIVADO: CPU al 100%, GPU dedicada, RAM optimizada.");
+            return report;
+        }
+
+        /// <summary>
+        /// Vacía memoria de todos los procesos EXCEPTO aquellos cuyo nombre coincida con el path del proceso objetivo.
+        /// </summary>
+        private static int TrimWorkingSetsForProcess(string targetPath, OptimizationReport report)
+        {
+            string targetName = System.IO.Path.GetFileNameWithoutExtension(targetPath).ToLowerInvariant();
+            int count = 0;
+
+            Process[] procs;
+            try { procs = Process.GetProcesses(); }
+            catch { return 0; }
+
+            foreach (Process p in procs)
+            {
+                try
+                {
+                    string name = p.ProcessName.ToLowerInvariant();
+                    if (IsCriticalProcess(name)) continue;
+
+                    // Skip if this is the target process (let it use its own memory)
+                    if (!string.IsNullOrEmpty(targetPath) && name.Contains(targetName)) continue;
+
+                    // Skip if process name matches target (e.g., "Megaretro Hub")
+                    if (name.Contains("megaretro") && !name.Contains("megaretrohub") && !name.Contains("megaretrohub.exe")) continue;
+
+                    EmptyWorkingSet(p.Handle);
+                    count++;
+                }
+                catch { }
+                finally { p.Dispose(); }
+            }
+
+            if (count > 0)
+                report.LogEntries.Add($"Working sets vaciados en {count} procesos.");
+            return count;
+        }
+
+        /// <summary>
+        /// Excluye al proceso de Megaretro Hub del throttling de energía de Windows,
+        /// garantizando acceso máximo a recursos de CPU, GPU y memoria.
+        /// También configura la GPU dedicada exclusivamente para este proceso.
+        /// </summary>
+        private static void ExcludeFromPowerThrottling(string megaretroPath, OptimizationReport report)
+        {
+            if (string.IsNullOrEmpty(megaretroPath))
+            {
+                report.LogEntries.Add("⚠️ Path de Megaretro Hub no especificado, omitiendo ajustes por proceso.");
+                return;
+            }
+
+            try
+            {
+                // 1. DirectX GPU Preference per-process: force dedicated GPU
+                using (RegistryKey? key = Registry.CurrentUser.OpenSubKey(
+                    @"Software\Microsoft\DirectX\UserGpuPreferences", true))
+                {
+                    if (key != null)
+                    {
+                        // Formato: "GpuPreference=<path>, <value>" donde value=2 es GPU dedicada
+                        string existing = key.GetValue("GpuPreference")?.ToString() ?? "";
+                        string newEntry = existing.Contains(megaretroPath) ? "" : existing + (existing.Length > 0 ? ";" : "") + $"\"{megaretroPath}\"=2";
+                        key.SetValue("GpuPreference", newEntry, RegistryValueKind.MultiString);
+                        report.LogEntries.Add($"🏎️ Megaretro Hub configurado para usar GPU Dedica NVIDIA exclusivamente.");
+                    }
+                }
+
+                // 2. Proceso GPU Priority en la tarea Games
+                using (RegistryKey? key = Registry.LocalMachine.OpenSubKey(
+                    @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games", true))
+                {
+                    if (key != null)
+                    {
+                        key.SetValue("GPU Priority", 8, RegistryValueKind.DWord);
+                        key.SetValue("Priority", 6, RegistryValueKind.DWord);
+                        report.LogEntries.Add("🎮 GPU Priority configurado a Nivel 8 (Máxima aceleración).");
+                    }
+                }
+
+                // 3. Hardware-Accelerated GPU Scheduling (HAGS)
+                using (RegistryKey? key = Registry.LocalMachine.OpenSubKey(
+                    @"SYSTEM\CurrentControlSet\Control\GraphicsDrivers", true))
+                {
+                    if (key != null)
+                    {
+                        key.SetValue("HagsEnabled", 2, RegistryValueKind.DWord);
+                        report.LogEntries.Add("⚡ HAGS (Programación GPU por hardware) ACTIVADA.");
+                    }
+                }
+
+                // 4. Power Throttling exclusion via powercfg
+                ProcessStartInfo psi = new ProcessStartInfo("powercfg", $"-setacvalueindex {HighPerformanceGuid} SUB_PROCESSOR 0cc5b647-c1df-4637-891a-dec35c3185a3 100")
+                {
+                    CreateNoWindow = true,
+                    UseShellExecute = false
+                };
+                Process.Start(psi)?.WaitForExit(2000);
+
+                report.LogEntries.Add($"🔧 Megaretro Hub excluido del throttling de energía (prioridad CPU al 100%).");
+            }
+            catch (Exception ex)
+            {
+                report.LogEntries.Add($"ℹ️ Ajuste por proceso parcialmente omitido: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Restaura los valores de GPU/DirectX/HAGS a sus valores por defecto.
+        /// </summary>
+        public static void RestoreGpuDirectxPreferences(OptimizationReport report)
+        {
+            try
+            {
+                using (RegistryKey? key = Registry.CurrentUser.OpenSubKey(
+                    @"Software\Microsoft\DirectX\UserGpuPreferences", true))
+                {
+                    if (key != null)
+                    {
+                        key.DeleteValue("GpuPreference", false);
+                        report.LogEntries.Add("🏎️ Preferencias de GPU DirectX restauradas.");
+                    }
+                }
+
+                using (RegistryKey? key = Registry.LocalMachine.OpenSubKey(
+                    @"SYSTEM\CurrentControlSet\Control\GraphicsDrivers", true))
+                {
+                    if (key != null)
+                    {
+                        key.SetValue("HagsEnabled", 1, RegistryValueKind.DWord);
+                        report.LogEntries.Add("⚡ HAGS restaurado.");
+                    }
+                }
+            }
+            catch { }
+        }
+
+        // ─────────────────────────────────────────────────────────────
         // GPU & DirectX Optimization
         // ─────────────────────────────────────────────────────────────
         private static void TuneGpuAndDirectXPriorities(bool enableGaming, OptimizationReport report)

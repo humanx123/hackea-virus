@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyDescriptionAttribute("Optimizador de rendimiento para juegos")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c18ae680022649b44774e3c038d2ec841574b27e")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e33cf0f22f4a8054bf2587ea70ed899620b94813")]
 [assembly: System.Reflection.AssemblyProductAttribute("GameBooster")]
 [assembly: System.Reflection.AssemblyTitleAttribute("GameBooster")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
