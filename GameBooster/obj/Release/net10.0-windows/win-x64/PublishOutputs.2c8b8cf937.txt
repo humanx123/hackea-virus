@@ -1,0 +1,2 @@
+C:\Users\fidel\.claude\worktrees\game-booster\GameBooster\publish\GameBooster.pdb
+C:\Users\fidel\.claude\worktrees\game-booster\GameBooster\publish\GameBooster.exe

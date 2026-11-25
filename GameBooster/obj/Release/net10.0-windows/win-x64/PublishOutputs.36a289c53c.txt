@@ -1,0 +1,3 @@
+C:\Users\fidel\Desktop\GameBoosterApp\GameBooster.pdb
+C:\Users\fidel\Desktop\GameBoosterApp\game.ico
+C:\Users\fidel\Desktop\GameBoosterApp\GameBooster.exe
