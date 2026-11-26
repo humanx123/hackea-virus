@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Management;
 using System.Runtime.InteropServices;
 using System.ServiceProcess;
@@ -60,12 +61,12 @@ namespace GameBooster
         private static string _originalPowerScheme = BalancedGuid;
 
         // ─────────────────────────────────────────────────────────────
-        // Modo JUEGO (CPU + GPU + RAM)
+        // Modo JUEGO (CPU + RAM - Libera GPU para juegos)
         // ─────────────────────────────────────────────────────────────
         public static OptimizationReport EnableGameMode()
         {
             var report = new OptimizationReport();
-            report.LogEntries.Add("🚀 Iniciando optimización MÁXIMA de CPU, GPU y RAM para juegos...");
+            report.LogEntries.Add("🚀 Iniciando optimización MÁXIMA de CPU y RAM para juegos...");
 
             // 1. RAM Optimization
             long before = AvailableMemoryMB();
@@ -79,13 +80,14 @@ namespace GameBooster
             SetPowerScheme(HighPerformanceGuid, report);
             DisableCpuCoreParking(true, report);
 
-            // 3. GPU Priorities & DirectX Hardware Acceleration
-            TuneGpuAndDirectXPriorities(true, report);
+            // 3. GPU: RESTAURAR a valores por defecto (liberar GPU para juegos)
+            // El modo juego NO debe monopolizar GPU - dejarla disponible para los juegos que se ejecutaran
+            TuneGpuAndDirectXPriorities(false, report);  // false = valores estándar
 
-            // 4. Pausa de servicios no esenciales
-            report.ServicesStopped = PauseBackgroundServices(report);
+            // 4. Pausa de servicios no esenciales (excepto GPU/audio)
+            report.ServicesStopped = PauseBackgroundServicesForGaming(report);
 
-            // 5. MMCSS CPU & Network Throttling
+            // 5. MMCSS: CPU prioritario pero sin saturar GPU
             TuneMultimediaProfile(true, report);
 
             // 6. Network Flush & Priority
@@ -93,7 +95,7 @@ namespace GameBooster
             SetGameModeAppPriority(report);
             TrimWorkingSets(null);
 
-            report.LogEntries.Add("🔥 MODO JUEGO ACTIVADO: CPU al 100%, GPU en Prioridad Máxima (DirectX/Vulkan) y RAM liberada.");
+            report.LogEntries.Add("🔥 MODO JUEGO ACTIVADO: CPU al 100%, GPU libre para juegos, RAM optimizada.");
             return report;
         }
 
@@ -295,50 +297,55 @@ namespace GameBooster
         // ─────────────────────────────────────────────────────────────
         // GPU & DirectX Optimization
         // ─────────────────────────────────────────────────────────────
-        private static void TuneGpuAndDirectXPriorities(bool enableGaming, OptimizationReport report)
+        private static void TuneGpuAndDirectXPriorities(bool forceDedicatedGgpu, OptimizationReport report)
         {
+            // `forceDedicatedGgpu` = true  → Megaretro Hub Mode: fuerza GPU dedicada exclusiva
+            // `forceDedicatedGgpu` = false → Game Mode: NO fuerza GPU (dejar para juegos)
             try
             {
-                // 1. MMCSS Games Task GPU Priority (8 = Máximo valor de aceleración gráfica)
-                using (RegistryKey? key = Registry.LocalMachine.OpenSubKey(
-                    @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games", true))
+                if (forceDedicatedGgpu)
                 {
-                    if (key != null)
+                    // 1. MMCSS Games Task GPU Priority (8 = Máximo valor de aceleración gráfica)
+                    using (RegistryKey? key = Registry.LocalMachine.OpenSubKey(
+                        @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games", true))
                     {
-                        key.SetValue("GPU Priority", enableGaming ? 8 : 2, RegistryValueKind.DWord);
-                        key.SetValue("Priority", enableGaming ? 6 : 2, RegistryValueKind.DWord);
-                        key.SetValue("Scheduling Category", enableGaming ? "High" : "Medium", RegistryValueKind.String);
-                        key.SetValue("SFIO Priority", enableGaming ? "High" : "Normal", RegistryValueKind.String);
-                        report.LogEntries.Add(enableGaming
-                            ? "🎮 GPU Priority fijado en Nivel 8 (Máxima aceleración gráfica en DirectX/OpenGL/Vulkan)."
-                            : "🎮 GPU Priority restaurado a valor estándar.");
+                        if (key != null)
+                        {
+                            key.SetValue("GPU Priority", 8, RegistryValueKind.DWord);
+                            key.SetValue("Priority", 6, RegistryValueKind.DWord);
+                            key.SetValue("Scheduling Category", "High", RegistryValueKind.String);
+                            key.SetValue("SFIO Priority", "High", RegistryValueKind.String);
+                            report.LogEntries.Add("🎮 GPU Priority fijado en Nivel 8 (Máxima aceleración gráfica en DirectX/OpenGL/Vulkan).");
+                        }
+                    }
+
+                    // 2. Hardware-Accelerated GPU Scheduling (HAGS)
+                    using (RegistryKey? key = Registry.LocalMachine.OpenSubKey(
+                        @"SYSTEM\CurrentControlSet\Control\GraphicsDrivers", true))
+                    {
+                        if (key != null)
+                        {
+                            key.SetValue("HagsEnabled", 2, RegistryValueKind.DWord);
+                            report.LogEntries.Add("⚡ Programación de GPU acelerada por hardware (HAGS) ACTIVADA.");
+                        }
+                    }
+
+                    // 3. DirectX High Performance Preference for Games
+                    using (RegistryKey? key = Registry.CurrentUser.OpenSubKey(
+                        @"Software\Microsoft\DirectX\UserGpuPreferences", true))
+                    {
+                        if (key != null)
+                        {
+                            key.SetValue("GpuPreference", 2, RegistryValueKind.DWord); // 2 = High Performance GPU (NVIDIA)
+                            report.LogEntries.Add("🏎️ DirectX configurado en Modo Máximo Rendimiento (GPU Dedicada NVIDIA).");
+                        }
                     }
                 }
-
-                // 2. Hardware-Accelerated GPU Scheduling (HAGS)
-                using (RegistryKey? key = Registry.LocalMachine.OpenSubKey(
-                    @"SYSTEM\CurrentControlSet\Control\GraphicsDrivers", true))
+                else
                 {
-                    if (key != null)
-                    {
-                        key.SetValue("HagsEnabled", enableGaming ? 2 : 1, RegistryValueKind.DWord);
-                        report.LogEntries.Add(enableGaming
-                            ? "⚡ Programación de GPU acelerada por hardware (HAGS) ACTIVADA."
-                            : "⚡ HAGS restaurado a estado predeterminado.");
-                    }
-                }
-
-                // 3. DirectX High Performance Preference for Games
-                using (RegistryKey? key = Registry.CurrentUser.OpenSubKey(
-                    @"Software\Microsoft\DirectX\UserGpuPreferences", true))
-                {
-                    if (key != null)
-                    {
-                        key.SetValue("GpuPreference", enableGaming ? 2 : 0, RegistryValueKind.DWord); // 2 = High Performance GPU (NVIDIA)
-                        report.LogEntries.Add(enableGaming
-                            ? "🏎️ DirectX configurado en Modo Máximo Rendimiento (GPU Dedicada NVIDIA)."
-                            : "🏎️ Preferencias de GPU DirectX restauradas.");
-                    }
+                    // Game Mode: NO forzar GPU - dejar que los juegos usen su propia GPU dedicada
+                    // Solo restaurar preferencias a valores por defecto
+                    RestoreGpuDirectxPreferences(report);
                 }
             }
             catch (Exception ex)
@@ -451,7 +458,7 @@ namespace GameBooster
         }
 
         // ─────────────────────────────────────────────────────────────
-        // Servicios de fondo
+        // Servicios de fondo (modo juego estándar)
         // ─────────────────────────────────────────────────────────────
         private static int PauseBackgroundServices(OptimizationReport report)
         {
@@ -478,6 +485,45 @@ namespace GameBooster
                 catch { }
             }
             report.LogEntries.Add($"⏸️ {count} servicios de fondo pausados (GPU/audio/red intactos).");
+            return count;
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // Para JUEGOS: pausar servicios excepto audio y red (GPU debe estar libre)
+        // ═══════════════════════════════════════════════════════════════════════════════
+        private static int PauseBackgroundServicesForGaming(OptimizationReport report)
+        {
+            int count = 0;
+            _pausedByUs.Clear();
+
+            // Servicios de red que SÍ pausamos (no son GPU)
+            string[] gamingPausable = { "SysMain", "WSearch", "DiagTrack", "PrintNotify",
+                                       "Spooler", "MapsBroker", "Fax", "RemoteRegistry",
+                                       "WerSvc", "PimIndexMaintenanceSvc" };
+
+            // Servicios de audio que NO debemos tocar (necesarios para juegos)
+            string[] audioProtected = { "AudioSrv", "AudioEndpointBuilder", "Audiosrv" };
+
+            foreach (string name in gamingPausable)
+            {
+                if (IsProtected(name) || audioProtected.Any(a => a.Equals(name, StringComparison.OrdinalIgnoreCase))) continue;
+                try
+                {
+                    using (ServiceController sc = new ServiceController(name))
+                    {
+                        if (sc.Status == ServiceControllerStatus.Running)
+                        {
+                            sc.Stop();
+                            sc.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(3));
+                            _pausedByUs.Add(name);
+                            count++;
+                            report.LogEntries.Add($"⚡ Servicio en pausa (modo juego): {name}");
+                        }
+                    }
+                }
+                catch { }
+            }
+            report.LogEntries.Add($"⏸️ {count} servicios pausados (audio/GPU libre para juegos).");
             return count;
         }
 
@@ -554,44 +600,40 @@ namespace GameBooster
             catch { }
         }
 
-        // ─────────────────────────────────────────────────────────────
-        // Métricas en vivo
-        // ─────────────────────────────────────────────────────────────
-        public static long AvailableMemoryMB()
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // Optimización de prioridad: baja prioridad para el proceso Game Booster
+        // ═══════════════════════════════════════════════════════════════════════════════
+        /// <summary>
+        /// Establece la prioridad del proceso Game Booster a Idle/Low para no competir
+        /// con juegos ni causar latencia en el sistema.
+        /// </summary>
+        public static void SetLowPriority()
         {
             try
             {
-                using (PerformanceCounter c = new PerformanceCounter("Memory", "Available MBytes"))
-                    return (long)c.NextValue();
+                Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.Idle;
+                Thread.CurrentThread.Priority = ThreadPriority.Lowest;
             }
+            catch { }
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // Métricas en vivo (optimizadas - singleton counters, sin Sleep)
+        // ─────────────────────────────────────────────────────────────
+        private static readonly PerformanceCounter _memCounter = new PerformanceCounter("Memory", "Available MBytes");
+        private static readonly PerformanceCounter _cpuCounter = new PerformanceCounter("Processor", "% Processor Time", "_Total");
+
+        public static long AvailableMemoryMB()
+        {
+            try { return (long)_memCounter.NextValue(); }
             catch { return 0; }
         }
 
         public static float CpuUsagePercent()
         {
-            try
-            {
-                using (PerformanceCounter c = new PerformanceCounter("Processor Information", "% Processor Utility", "0"))
-                {
-                    c.NextValue();
-                    Thread.Sleep(120);
-                    float v = c.NextValue();
-                    return Math.Clamp(v, 0f, 100f);
-                }
-            }
-            catch
-            {
-                try
-                {
-                    using (PerformanceCounter c = new PerformanceCounter("Processor", "% Processor Time"))
-                    {
-                        c.NextValue();
-                        Thread.Sleep(120);
-                        return Math.Clamp(c.NextValue(), 0f, 100f);
-                    }
-                }
-                catch { return 0f; }
-            }
+            // SIN Sleep - lectura instantánea (el counter ya está calibrado por primer NextValue)
+            try { return Math.Clamp(_cpuCounter.NextValue(), 0f, 100f); }
+            catch { return 0f; }
         }
 
         public static (double TotalGB, double UsedGB, double FreeGB, int Percent) MemoryStats()
