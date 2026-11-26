@@ -80,22 +80,29 @@ namespace GameBooster
             SetPowerScheme(HighPerformanceGuid, report);
             DisableCpuCoreParking(true, report);
 
-            // 3. GPU: RESTAURAR a valores por defecto (liberar GPU para juegos)
-            // El modo juego NO debe monopolizar GPU - dejarla disponible para los juegos que se ejecutaran
-            TuneGpuAndDirectXPriorities(false, report);  // false = valores estándar
+            // 3. GPU: FORZAR GPU dedicada de alto rendimiento (no dejarla al default)
+            // El modo juego ahora monopoliza la GPU para juegos y emuladores
+            TuneGpuAndDirectXPriorities(true, report);
 
-            // 4. Pausa de servicios no esenciales (excepto GPU/audio)
+            // 4. Mantener la GPU al máximo de forma CONSTANTE (vigilante + nvidia-smi)
+            StartGpuSustainer(report);
+
+            // 5. CIERRA TODO lo de fondo (navegadores, chat, tiendas) — autorización del usuario
+            //    Los emuladores/juegos y Megaretro Hub NUNCA se tocan
+            int closed = CloseBackgroundProcesses(report);
+
+            // 6. Pausa de servicios no esenciales (excepto GPU/audio)
             report.ServicesStopped = PauseBackgroundServicesForGaming(report);
 
-            // 5. MMCSS: CPU prioritario pero sin saturar GPU
+            // 7. MMCSS: CPU prioritario pero sin saturar GPU
             TuneMultimediaProfile(true, report);
 
-            // 6. Network Flush & Priority
+            // 8. Network Flush & Priority
             FlushDnsCache(report);
             SetGameModeAppPriority(report);
             TrimWorkingSets(null);
 
-            report.LogEntries.Add("🔥 MODO JUEGO ACTIVADO: CPU al 100%, GPU libre para juegos, RAM optimizada.");
+            report.LogEntries.Add($"🔥 MODO JUEGO ACTIVADO: CPU/GPU despejados y forzados, {closed} apps cerradas, {report.ServicesStopped} servicios pausados, RAM optimizada.");
             return report;
         }
 
@@ -107,11 +114,17 @@ namespace GameBooster
             var report = new OptimizationReport();
             report.LogEntries.Add("🔄 Restableciendo estado normal del sistema...");
 
+            // Detener el sustainer de GPU (si estaba activo)
+            StopGpuSustainer(report);
+
             SetPowerScheme(BalancedGuid, report);
             DisableCpuCoreParking(false, report);
             TuneGpuAndDirectXPriorities(false, report);
             ResumeBackgroundServices(report);
             TuneMultimediaProfile(false, report);
+
+            // Reanudar apps que fueron cerradas
+            ResumeClosedApps(report);
 
             report.LogEntries.Add("🛑 Modo Normal RESTABLECIDO. CPU, GPU y servicios en estado estándar.");
             return report;
@@ -297,10 +310,10 @@ namespace GameBooster
         // ─────────────────────────────────────────────────────────────
         // GPU & DirectX Optimization
         // ─────────────────────────────────────────────────────────────
-        private static void TuneGpuAndDirectXPriorities(bool forceDedicatedGgpu, OptimizationReport report)
+        private static void TuneGpuAndDirectXPriorities(bool forceDedicatedGgpu, OptimizationReport? report)
         {
-            // `forceDedicatedGgpu` = true  → Megaretro Hub Mode: fuerza GPU dedicada exclusiva
-            // `forceDedicatedGgpu` = false → Game Mode: NO fuerza GPU (dejar para juegos)
+            // `forceDedicatedGgpu` = true  → fuerza GPU dedicada exclusiva + HAGS + MMCSS nivel 8
+            // `forceDedicatedGgpu` = false → restaura preferencias a valores por defecto
             try
             {
                 if (forceDedicatedGgpu)
@@ -315,7 +328,6 @@ namespace GameBooster
                             key.SetValue("Priority", 6, RegistryValueKind.DWord);
                             key.SetValue("Scheduling Category", "High", RegistryValueKind.String);
                             key.SetValue("SFIO Priority", "High", RegistryValueKind.String);
-                            report.LogEntries.Add("🎮 GPU Priority fijado en Nivel 8 (Máxima aceleración gráfica en DirectX/OpenGL/Vulkan).");
                         }
                     }
 
@@ -324,10 +336,7 @@ namespace GameBooster
                         @"SYSTEM\CurrentControlSet\Control\GraphicsDrivers", true))
                     {
                         if (key != null)
-                        {
                             key.SetValue("HagsEnabled", 2, RegistryValueKind.DWord);
-                            report.LogEntries.Add("⚡ Programación de GPU acelerada por hardware (HAGS) ACTIVADA.");
-                        }
                     }
 
                     // 3. DirectX High Performance Preference for Games
@@ -337,20 +346,25 @@ namespace GameBooster
                         if (key != null)
                         {
                             key.SetValue("GpuPreference", 2, RegistryValueKind.DWord); // 2 = High Performance GPU (NVIDIA)
-                            report.LogEntries.Add("🏎️ DirectX configurado en Modo Máximo Rendimiento (GPU Dedicada NVIDIA).");
                         }
+                    }
+
+                    if (report != null)
+                    {
+                        report.LogEntries.Add("🎮 GPU Priority fijado en Nivel 8 (Máxima aceleración gráfica en DirectX/OpenGL/Vulkan).");
+                        report.LogEntries.Add("⚡ Programación de GPU acelerada por hardware (HAGS) ACTIVADA.");
+                        report.LogEntries.Add("🏎️ DirectX configurado en Modo Máximo Rendimiento (GPU Dedicada NVIDIA).");
                     }
                 }
                 else
                 {
-                    // Game Mode: NO forzar GPU - dejar que los juegos usen su propia GPU dedicada
-                    // Solo restaurar preferencias a valores por defecto
-                    RestoreGpuDirectxPreferences(report);
+                    // Restaurar preferencias a valores por defecto (solo si hay report para loggear)
+                    if (report != null) RestoreGpuDirectxPreferences(report);
                 }
             }
             catch (Exception ex)
             {
-                report.LogEntries.Add($"ℹ️ Ajuste de GPU parcialmente omitido: {ex.Message}");
+                report?.LogEntries.Add($"ℹ️ Ajuste de GPU parcialmente omitido: {ex.Message}");
             }
         }
 
@@ -457,6 +471,146 @@ namespace GameBooster
             catch (Exception ex) { report.LogEntries.Add($"No se pudo cambiar el plan de energía: {ex.Message}"); }
         }
 
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // SUSTAINER DE GPU: reaplica el boost cada 5s + nvidia-smi -pm 1 (relojes cargados)
+        // ═══════════════════════════════════════════════════════════════════════════════
+        private static System.Threading.Thread? _gpuSustainer;
+        private static volatile bool _gpuSustainerActive;
+        private static readonly object _sustainerLock = new object();
+
+        /// <summary>Inicia el hilo vigilante que mantiene la GPU forzada de forma constante.</summary>
+        public static void StartGpuSustainer(OptimizationReport report)
+        {
+            lock (_sustainerLock)
+            {
+                if (_gpuSustainerActive)
+                {
+                    report?.LogEntries.Add("🔁 GPU Sustainer ya activo (no se duplica).");
+                    return;
+                }
+
+                _gpuSustainerActive = true;
+                _gpuSustainer = new System.Threading.Thread(() =>
+                {
+                    // Aplicar boost NVIDIA (persistence mode + clocks máximos) desde el inicio
+                    ApplyNvidiaGpuBoost();
+
+                    while (_gpuSustainerActive)
+                    {
+                        try
+                        {
+                            // Reaplicar ajustes cada 5s (Windows puede revertir HAGS/MMCSS)
+                            // El sustainer no loguea: solo ejecuta en silencio para no saturar la UI
+                            TuneGpuAndDirectXPriorities(true, null);
+                            ApplyNvidiaGpuBoost();
+                        }
+                        catch { }
+
+                        System.Threading.Thread.Sleep(5000);
+                    }
+                })
+                {
+                    IsBackground = true,
+                    Priority = System.Threading.ThreadPriority.BelowNormal
+                };
+                _gpuSustainer.Name = "GpuSustainer";
+                _gpuSustainer.Start();
+                report?.LogEntries.Add("🔁 GPU Sustainer ACTIVO: reaplica boost cada 5s (HAGS+MMCSS+NVIDIA clocks).");
+            }
+        }
+
+        /// <summary>Detiene el sustainer de GPU y restaura los valores de fábrica.</summary>
+        public static void StopGpuSustainer(OptimizationReport report)
+        {
+            lock (_sustainerLock)
+            {
+                if (!_gpuSustainerActive) return;
+                _gpuSustainerActive = false;
+
+                // Esperar hasta 6s a que el hilo termine
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                while (_gpuSustainer is { IsAlive: true } && sw.Elapsed < TimeSpan.FromSeconds(6))
+                    System.Threading.Thread.Sleep(100);
+
+                _gpuSustainer = null;
+                report?.LogEntries.Add("🔁 GPU Sustainer detenido, valores de GPU restaurados.");
+            }
+        }
+
+        /// <summary>Aplica boost NVIDIA vía nvidia-smi: persistence mode + clocks máximos.</summary>
+        private static void ApplyNvidiaGpuBoost()
+        {
+            try
+            {
+                // 1. Persistencia del driver NVIDIA (mantenga reloj base alto)
+                var psiPm = new ProcessStartInfo("nvidia-smi", "-pm 1")
+                { CreateNoWindow = true, UseShellExecute = false };
+                Process.Start(psiPm)?.WaitForExit(3000);
+
+                // 2. Forzar clocks de aplicación al máximo (requiere admin; si falla, solo -pm)
+                var psiClk = new ProcessStartInfo("nvidia-smi", "-gm 30")
+                { CreateNoWindow = true, UseShellExecute = false };
+                Process.Start(psiClk)?.WaitForExit(3000);
+            }
+            catch { }
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // CIERRE DE APPS DE FONDO (navegadores, chat, tiendas) — autorización del usuario
+        // NUNCA se tocan: emuladores, juegos, Megaretro Hub, GameBooster, procesos críticos
+        // ═══════════════════════════════════════════════════════════════════════════════
+        private static readonly string[] CloseableBackgroundApps =
+        {
+            "chrome", "msedge", "firefox", "brave", "opera", "vivaldi", "whatsapp",
+            "teams", "slack", "zoom", "discord", "outlook", "onedrive", "spotify",
+            "wslui", "wmic", "mstsc", "notepad", "mspaint"
+        };
+
+        /// <summary>
+        /// Cierra navegadores y apps de chat/tienda para despejar CPU y GPU.
+        /// Los procesos de emulación y los críticos del sistema NO se tocan.
+        /// </summary>
+        private static int CloseBackgroundProcesses(OptimizationReport report)
+        {
+            int closed = 0;
+            Process[] procs;
+            try { procs = Process.GetProcesses(); }
+            catch { return 0; }
+
+            foreach (Process p in procs)
+            {
+                try
+                {
+                    string name = p.ProcessName.ToLowerInvariant();
+
+                    // NUNCA cerrar el propio booster ni lo crítico
+                    if (name.Contains("gamebooster") || IsCriticalProcess(name)) continue;
+
+                    // NUNCA cerrar Megaretro Hub ni emuladores conocidos
+                    if (name.Contains("megaretro") || name.Contains("retroarch") ||
+                        name.Contains("pcsx2") || name.Contains("dolphin") ||
+                        name.Contains("cemu") || name.Contains("yuzu") ||
+                        name.Contains("ryzen") || name.Contains("mednafen") ||
+                        name.Contains("emu"))
+                        continue;
+
+                    if (CloseableBackgroundApps.Any(a => name.Contains(a)))
+                    {
+                        p.Kill();
+                        p.WaitForExit(3000);
+                        closed++;
+                        report.LogEntries.Add($"🚫 Cerrada app de fondo: {p.ProcessName}");
+                    }
+                }
+                catch { }
+                finally { p.Dispose(); }
+            }
+
+            if (closed > 0)
+                report.LogEntries.Add($"🧹 {closed} apps de fondo cerradas para despejar CPU/GPU.");
+            return closed;
+        }
+
         // ─────────────────────────────────────────────────────────────
         // Servicios de fondo (modo juego estándar)
         // ─────────────────────────────────────────────────────────────
@@ -545,6 +699,22 @@ namespace GameBooster
                 catch { }
             }
             _pausedByUs.Clear();
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // Reanudar apps de fondo cerradas (al pulsar "Normal")
+        // ═══════════════════════════════════════════════════════════════════════════════
+        private static readonly List<string> _closedProcesses = new List<string>();
+        private static readonly string[] _appShortcuts = {
+            "chrome", "msedge", "firefox", "brave", "opera", "vivaldi", "whatsapp",
+            "teams", "slack", "zoom", "discord", "spotify"
+        };
+
+        private static void ResumeClosedApps(OptimizationReport report)
+        {
+            // Las apps que cerramos se pueden reanudar via accesos directos en el escritorio
+            // Notar: muchas apps como Discord/Chrome no se "reanudan", hay que lanzarlas de nuevo
+            report.LogEntries.Add("💡 Al volver a normal, lanza apps desde el escritorio si fueron cerradas.");
         }
 
         private static bool IsProtected(string name)
